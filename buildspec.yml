@@ -1,0 +1,30 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.25
+    commands:
+      - mkdir -p /tmp/go-cache
+      - go version
+  pre_build:
+    commands:
+      - export GOCACHE=/tmp/go-cache
+      - go mod download
+      - echo "Running unit tests with race detection..."
+      - go test -race ./tests/...
+  build:
+    commands:
+      - export GOCACHE=/tmp/go-cache
+      - echo "Compiling microservices..."
+      - mkdir -p bin
+      - GOOS=linux GOARCH=amd64 go build -o bin/gateway ./gateway/main.go
+      - GOOS=linux GOARCH=amd64 go build -o bin/order-service ./services/order/main.go
+      - GOOS=linux GOARCH=amd64 go build -o bin/product-service ./services/product/main.go
+artifacts:
+  files:
+    - bin/gateway
+    - bin/order-service
+    - bin/product-service
+    - Procfile
+    - schema.sql
