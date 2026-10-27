@@ -1,1 +1,3 @@
-web: (bin/product-service &) && (bin/order-service &) && exec bin/gateway
+web: bin/gateway
+order: bin/order-service
+product: bin/product-service
