@@ -1,43 +1,40 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net/http"
-	"time"
+	"context"
 
+	"ecommerce-microservices/database"
 	"ecommerce-microservices/pkg/middleware"
 	"ecommerce-microservices/services/product/config"
 	"ecommerce-microservices/services/product/controller"
+	"ecommerce-microservices/services/product/model"
 	"ecommerce-microservices/services/product/repository"
 	"ecommerce-microservices/services/product/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
 	cfg := config.Load()
 
-	poolConfig, err := pgxpool.ParseConfig(cfg.DSN())
-	if err != nil {
-		log.Fatalf("unable to parse database config: %v", err)
-	}
-	poolConfig.MaxConns = 25
-	poolConfig.MinConns = 5
-	poolConfig.MaxConnLifetime = 5 * time.Minute
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	db, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	// 1. Initialize GORM connection pool
+	poolCfg := database.DefaultPoolConfig(cfg.DSN())
+	db, err := database.Connect(context.Background(), poolCfg) // or database.Connect(context.Background(), poolCfg) depending on your signature
 	if err != nil {
 		log.Fatalf("product database connection error: %v", err)
 	}
-	defer db.Close()
 
-	if err := db.Ping(ctx); err != nil {
-		log.Fatalf("product database ping failed: %v", err)
+	// 2. Run GORM auto-migration for Product model
+	if err := db.AutoMigrate(&model.Product{}); err != nil {
+		log.Fatalf("product schema migration failed: %v", err)
+	}
+
+	// 3. Extract the underlying *sql.DB for health checks
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to retrieve sql.DB from gorm: %v", err)
 	}
 
 	repo := repository.NewPostgresProductRepository(db)
@@ -49,20 +46,27 @@ func main() {
 	r.Use(middleware.RecoveryMiddleware("product-service"))
 	r.Use(middleware.StructuredLogger("product-service"))
 
+	// Liveness & Basic Probes
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"service": "product-service", "status": "UP"})
 	})
 	r.GET("/health/live", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"service": "product-service", "status": "ALIVE"})
 	})
+
+	// Readiness Probe: Uses sqlDB.PingContext to verify DB connection
 	r.GET("/health/ready", func(c *gin.Context) {
-		if err := db.Ping(c.Request.Context()); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY", "error": err.Error()})
+		if err := sqlDB.PingContext(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "NOT_READY",
+				"error":  err.Error(),
+			})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "READY"})
 	})
 
+	// Business Routes
 	r.POST("/products", ctrl.Create)
 	r.GET("/products/:id", ctrl.GetByID)
 	r.GET("/products", ctrl.GetAll)
