@@ -32,7 +32,7 @@ func Load() Config {
 		DBName:            get("ORDER_DB_NAME", "order_product"),
 		Port:              get("ORDER_SERVICE_PORT", "8082"),
 		ConsulURL:         get("CONSUL_URL", "http://localhost:8500"),
-		SSLMode:           get("ORDER_DB_SSLMODE", "disable"),
+		SSLMode:           get("ORDER_DB_SSLMODE", "require"),
 		ProductServiceURL: get("PRODUCT_SERVICE_URL", "http://localhost:8081"),
 	}
 }

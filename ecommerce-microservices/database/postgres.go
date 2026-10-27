@@ -6,13 +6,15 @@ import (
 	"log"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type PoolConfig struct {
 	DSN             string
-	MaxConns        int32
-	MinConns        int32
+	MaxConns        int
+	MinConns        int
 	MaxConnLifetime time.Duration
 	MaxConnIdleTime time.Duration
 }
@@ -27,30 +29,32 @@ func DefaultPoolConfig(dsn string) *PoolConfig {
 	}
 }
 
-func Connect(ctx context.Context, cfg *PoolConfig) (*pgxpool.Pool, error) {
-	poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
+// Connect initializes GORM with PostgreSQL and applies the connection pool limits
+func Connect(ctx context.Context, cfg *PoolConfig) (*gorm.DB, error) {
+	db, err := gorm.Open(postgres.Open(cfg.DSN), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse DSN: %w", err)
+		return nil, fmt.Errorf("failed to connect database via GORM: %w", err)
 	}
 
-	poolCfg.MaxConns = cfg.MaxConns
-	poolCfg.MinConns = cfg.MinConns
-	poolCfg.MaxConnLifetime = cfg.MaxConnLifetime
-	poolCfg.MaxConnIdleTime = cfg.MaxConnIdleTime
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get generic database object: %w", err)
+	}
+
+	sqlDB.SetMaxOpenConns(cfg.MaxConns)
+	sqlDB.SetMaxIdleConns(cfg.MinConns)
+	sqlDB.SetConnMaxLifetime(cfg.MaxConnLifetime)
+	sqlDB.SetConnMaxIdleTime(cfg.MaxConnIdleTime)
 
 	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.NewWithConfig(connectCtx, poolCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize pgx connection pool: %w", err)
-	}
-
-	if err := pool.Ping(connectCtx); err != nil {
-		pool.Close()
+	if err := sqlDB.PingContext(connectCtx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Printf("Successfully established PostgreSQL pgxpool (Max: %d, Min: %d)", cfg.MaxConns, cfg.MinConns)
-	return pool, nil
+	log.Printf("Successfully established GORM PostgreSQL connection pool (Max: %d, Min: %d)", cfg.MaxConns, cfg.MinConns)
+	return db, nil
 }
