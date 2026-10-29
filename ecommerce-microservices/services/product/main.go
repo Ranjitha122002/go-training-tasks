@@ -28,7 +28,7 @@ func main() {
 
 	// 2. Run GORM auto-migration for Product model
 	if err := db.AutoMigrate(&model.Product{}); err != nil {
-		log.Fatalf("product schema migration failed: %v", err)
+		log.Fatalf("product schema migration warning (ignored): %v", err)
 	}
 
 	// 3. Extract the underlying *sql.DB for health checks

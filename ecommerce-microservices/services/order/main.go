@@ -28,7 +28,7 @@ func main() {
 
 	// 2. Run GORM auto-migration for Order model
 	if err := db.AutoMigrate(&model.Order{}); err != nil {
-		log.Fatalf("order schema migration failed: %v", err)
+		log.Fatalf("order schema migration warning (ignored): %v", err)
 	}
 
 	// 3. Extract sql.DB for the readiness ping probe
