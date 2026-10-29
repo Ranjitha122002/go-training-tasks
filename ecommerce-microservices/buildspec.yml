@@ -31,4 +31,6 @@ artifacts:
     - bin/order-service
     - bin/product-service
     - Procfile
+    - go.mod
+    - go.sum
     - schema.sql
