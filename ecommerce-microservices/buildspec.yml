@@ -23,6 +23,7 @@ phases:
       - GOOS=linux GOARCH=amd64 go build -o bin/gateway ./gateway/main.go
       - GOOS=linux GOARCH=amd64 go build -o bin/order-service ./services/order/main.go
       - GOOS=linux GOARCH=amd64 go build -o bin/product-service ./services/product/main.go
+      - chmod +x bin/* Procfile
 
 artifacts:
   base-directory: ecommerce-microservices
