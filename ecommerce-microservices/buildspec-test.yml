@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Installing Go dependencies for testing..."
+      - cd ecommerce-microservices || true
+      - mkdir -p /tmp/go-cache
+      - go version
+  pre_build:
+    commands:
+      - cd ecommerce-microservices || true
+      - export GOCACHE=/tmp/go-cache
+      - go mod download
+  build:
+    commands:
+      - cd ecommerce-microservices || true
+      - export GOCACHE=/tmp/go-cache
+      - echo "Executing race-condition unit test suite..."
+      - go test -v -race ./tests/...
